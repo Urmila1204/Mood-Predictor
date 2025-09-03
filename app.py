@@ -14,7 +14,7 @@ import os
 # -----------------------------
 # Step 1: Load or Create Dataset
 # -----------------------------
-DATA_FILE = "mood_dataset.csv"
+DATA_FILE = "meaningful_mood_dataset.csv"
 
 def load_dataset():
     if os.path.exists(DATA_FILE):
@@ -127,4 +127,4 @@ st.dataframe(df)
 
 # Download dataset
 csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("💾 Download Dataset as CSV", data=csv, file_name="mood_dataset.csv", mime="text/csv")
+st.download_button("💾 Download Dataset as CSV", data=csv, file_name="meaningful_mood_dataset.csv", mime="text/csv")
