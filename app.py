@@ -1,5 +1,5 @@
 # ================================
-# 🔮 Mood Predictor with Streamlit UI
+# 🔮 Mood Predictor with Auto-Prediction
 # ================================
 
 import streamlit as st
@@ -8,6 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import VotingClassifier, RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import os
 
@@ -32,7 +33,7 @@ def load_dataset():
 df = load_dataset()
 
 # -----------------------------
-# Step 2: Train Model Function (Full Dataset)
+# Step 2: Train Model Function
 # -----------------------------
 def train_model_full(df):
     le_energy = LabelEncoder()
@@ -52,9 +53,10 @@ def train_model_full(df):
     clf2 = RandomForestClassifier()
     clf3 = GradientBoostingClassifier()
     clf4 = SVC(probability=True)
+    clf_knn = KNeighborsClassifier(n_neighbors=3)
 
     ensemble = VotingClassifier(estimators=[
-        ('lr', clf1), ('rf', clf2), ('gb', clf3), ('svc', clf4)
+        ('lr', clf1), ('rf', clf2), ('gb', clf3), ('svc', clf4), ('knn', clf_knn)
     ], voting='soft')
 
     ensemble.fit(X, y)
@@ -71,44 +73,53 @@ ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr = train_mode
 # -----------------------------
 # Step 3: Streamlit UI
 # -----------------------------
-st.title("🎭 Mood Predictor with Permanent Add & Retrain")
+st.title("🎭 Mood Predictor with Auto-Prediction")
 
 energy = st.text_input("Energy (High / Medium / Low):")
 thoughts = st.text_input("Thoughts (Positive / Negative / Neutral):")
 activity = st.text_input("Activity (Socialize / Relax / Work):")
-new_mood = st.text_input("Mood (if adding a new entry):")
+new_mood = st.text_input("Mood (if adding a new entry manually):")
 
 # Prediction
 if st.button("✨ Predict Mood"):
     if energy and thoughts and activity:
         try:
+            # Encode inputs safely
             encoded_input = [
-                le_energy.transform([energy])[0],
-                le_thoughts.transform([thoughts])[0],
-                le_activity.transform([activity])[0]
+                le_energy.transform([energy])[0] if energy in le_energy.classes_ else -1,
+                le_thoughts.transform([thoughts])[0] if thoughts in le_thoughts.classes_ else -1,
+                le_activity.transform([activity])[0] if activity in le_activity.classes_ else -1
             ]
-            prediction = ensemble.predict([encoded_input])[0]
+
+            # If unseen input (-1), use kNN for prediction
+            if -1 in encoded_input:
+                knn = KNeighborsClassifier(n_neighbors=3)
+                X = df[["Energy_enc", "Thoughts_enc", "Activity_enc"]]
+                y = df["Mood_enc"]
+                knn.fit(X, y)
+                prediction = knn.predict([encoded_input])[0]
+            else:
+                prediction = ensemble.predict([encoded_input])[0]
+
             mood_label = le_mood.inverse_transform([prediction])[0]
             st.success(f"🎉 Predicted Mood: {mood_label}")
-            st.info(f"📊 Current Model Accuracy (on full dataset): {acc:.2f}")
+            st.info(f"📊 Current Model Accuracy: {acc:.2f}")
             st.text("Confusion Matrix:")
             st.write(cm)
             st.text("Classification Report:")
             st.text(cr)
         except:
-            st.error("⚠️ Invalid input! Please add this combination first using Add & Retrain.")
+            st.error("⚠️ Something went wrong with the prediction!")
     else:
         st.warning("Please fill all fields!")
 
-# Add & Retrain
+# Add & Retrain manually
 if st.button("➕ Add & Retrain"):
     if energy and thoughts and activity and new_mood:
-        # Append new row permanently
         new_entry = pd.DataFrame([[energy, thoughts, activity, new_mood]],
                                  columns=["Energy", "Thoughts", "Activity", "Mood"])
         new_entry.to_csv(DATA_FILE, mode='a', header=False, index=False)
 
-        # Reload dataset and retrain model immediately
         df = load_dataset()
         ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr = train_model_full(df)
 
@@ -121,7 +132,7 @@ if st.button("➕ Add & Retrain"):
     else:
         st.warning("Please fill all fields including the new mood!")
 
-# Show current dataset
+# Show dataset
 st.subheader("📂 Current Dataset")
 st.dataframe(df)
 
