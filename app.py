@@ -1,6 +1,9 @@
+# ================================
+# 🔮 Mood Predictor with Streamlit UI
+# ================================
+
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import VotingClassifier, RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -29,9 +32,9 @@ def load_dataset():
 df = load_dataset()
 
 # -----------------------------
-# Step 2: Train Model Function
+# Step 2: Train Model Function (Full Dataset)
 # -----------------------------
-def train_model(df):
+def train_model_full(df):
     le_energy = LabelEncoder()
     le_thoughts = LabelEncoder()
     le_activity = LabelEncoder()
@@ -45,8 +48,6 @@ def train_model(df):
     X = df[["Energy_enc", "Thoughts_enc", "Activity_enc"]]
     y = df["Mood_enc"]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
     clf1 = LogisticRegression(max_iter=1000)
     clf2 = RandomForestClassifier()
     clf3 = GradientBoostingClassifier()
@@ -56,15 +57,16 @@ def train_model(df):
         ('lr', clf1), ('rf', clf2), ('gb', clf3), ('svc', clf4)
     ], voting='soft')
 
-    ensemble.fit(X_train, y_train)
+    ensemble.fit(X, y)
 
-    y_pred = ensemble.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
+    y_pred = ensemble.predict(X)
+    acc = accuracy_score(y, y_pred)
+    cm = confusion_matrix(y, y_pred)
+    cr = classification_report(y, y_pred, zero_division=0, output_dict=False)
 
-    return ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, X_test, y_test, y_pred
+    return ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr
 
-# Initial training
-ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, X_test, y_test, y_pred = train_model(df)
+ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr = train_model_full(df)
 
 # -----------------------------
 # Step 3: Streamlit UI
@@ -88,6 +90,11 @@ if st.button("✨ Predict Mood"):
             prediction = ensemble.predict([encoded_input])[0]
             mood_label = le_mood.inverse_transform([prediction])[0]
             st.success(f"🎉 Predicted Mood: {mood_label}")
+            st.info(f"📊 Current Model Accuracy (on full dataset): {acc:.2f}")
+            st.text("Confusion Matrix:")
+            st.write(cm)
+            st.text("Classification Report:")
+            st.text(cr)
         except:
             st.error("⚠️ Invalid input! Please add this combination first using Add & Retrain.")
     else:
@@ -103,21 +110,16 @@ if st.button("➕ Add & Retrain"):
 
         # Reload dataset and retrain model immediately
         df = load_dataset()
-        ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, X_test, y_test, y_pred = train_model(df)
+        ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr = train_model_full(df)
 
         st.success(f"✅ New mood '{new_mood}' added permanently and model retrained!")
+        st.info(f"📊 Updated Model Accuracy: {acc:.2f}")
+        st.text("Confusion Matrix:")
+        st.write(cm)
+        st.text("Classification Report:")
+        st.text(cr)
     else:
         st.warning("Please fill all fields including the new mood!")
-
-# Performance
-st.subheader("📊 Model Performance")
-st.write(f"✅ Accuracy: {acc:.2f}")
-
-st.text("Confusion Matrix:")
-st.write(confusion_matrix(y_test, y_pred))
-
-st.text("Classification Report:")
-st.text(classification_report(y_test, y_pred))
 
 # Show current dataset
 st.subheader("📂 Current Dataset")
@@ -125,4 +127,4 @@ st.dataframe(df)
 
 # Download dataset
 csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("💾 Download Dataset as CSV", data=csv, file_name="meaningful_mood_dataset.csv", mime="text/csv")
+st.download_button("💾 Download Dataset as CSV", data=csv, file_name="mood_dataset.csv", mime="text/csv")
