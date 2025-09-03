@@ -1,5 +1,5 @@
 # ================================
-# 🔮 Mood Predictor with Auto-Prediction
+# 🔮 Mood Predictor with Risk Warnings
 # ================================
 
 import streamlit as st
@@ -71,12 +71,20 @@ def train_model_full(df):
 ensemble, le_energy, le_thoughts, le_activity, le_mood, acc, cm, cr = train_model_full(df)
 
 # -----------------------------
-# Step 3: Streamlit UI
+# Step 3: Risky Keywords
 # -----------------------------
-st.title("🎭 Mood Predictor with Auto-Prediction")
+RISKY_KEYWORDS = ["suicidal", "depressed", "hopeless", "self-harm", "anxious", "overwhelmed"]
+
+def check_risky_thoughts(thoughts_input):
+    return any(word.lower() in thoughts_input.lower() for word in RISKY_KEYWORDS)
+
+# -----------------------------
+# Step 4: Streamlit UI
+# -----------------------------
+st.title("🎭 Mood Predictor with Risk Warnings & Auto-Prediction")
 
 energy = st.text_input("Energy (High / Medium / Low):")
-thoughts = st.text_input("Thoughts (Positive / Negative / Neutral):")
+thoughts = st.text_input("Thoughts (Positive / Negative / Neutral / Others):")
 activity = st.text_input("Activity (Socialize / Relax / Work):")
 new_mood = st.text_input("Mood (if adding a new entry manually):")
 
@@ -91,7 +99,7 @@ if st.button("✨ Predict Mood"):
                 le_activity.transform([activity])[0] if activity in le_activity.classes_ else -1
             ]
 
-            # If unseen input (-1), use kNN for prediction
+            # Predict using kNN if any input is unseen
             if -1 in encoded_input:
                 knn = KNeighborsClassifier(n_neighbors=3)
                 X = df[["Energy_enc", "Thoughts_enc", "Activity_enc"]]
@@ -103,13 +111,25 @@ if st.button("✨ Predict Mood"):
 
             mood_label = le_mood.inverse_transform([prediction])[0]
             st.success(f"🎉 Predicted Mood: {mood_label}")
+
+            # Check for risky thoughts
+            if check_risky_thoughts(thoughts):
+                st.warning(
+                    "⚠️ It seems you are expressing risky or negative thoughts. "
+                    "Please consider talking to a trusted friend, family member, or a mental health professional immediately."
+                )
+                st.markdown(
+                    "📞 **Helplines:** If you feel unsafe, call 988 (India) or visit [Befrienders Worldwide](https://www.befrienders.org)"
+                )
+
             st.info(f"📊 Current Model Accuracy: {acc:.2f}")
             st.text("Confusion Matrix:")
             st.write(cm)
             st.text("Classification Report:")
             st.text(cr)
-        except:
-            st.error("⚠️ Something went wrong with the prediction!")
+
+        except Exception as e:
+            st.error(f"⚠️ Something went wrong with the prediction! ({e})")
     else:
         st.warning("Please fill all fields!")
 
